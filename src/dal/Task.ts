@@ -35,3 +35,9 @@ export async function deleteTask(id: string) {
   console.log(cursor);
   return cursor.ok;
 }
+
+export async function updateTask(id: string, values: Task) {
+  const tasks = Client.db('thm-tt').collection<Task>('tasks');
+  await tasks.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: values });
+  return await tasks.findOne({ _id: new ObjectId(id) });
+}

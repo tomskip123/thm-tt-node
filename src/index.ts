@@ -5,7 +5,7 @@ import express from 'express';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
-import { addTask, deleteTask, getTasks } from './dal/Task';
+import { addTask, deleteTask, getTasks, updateTask } from './dal/Task';
 
 const app = express();
 const port = 3001; // default port to listen
@@ -29,6 +29,11 @@ app.post('/tasks', async (req, res) => res.json(await addTask(req.body)));
 // delete task
 app.delete('/tasks/:id', async (req, res) =>
   res.json(await deleteTask(req.params.id))
+);
+
+// update task
+app.put('/tasks/:id', async (req, res) =>
+  res.json(await updateTask(req.params.id, req.body))
 );
 
 // start the express server
