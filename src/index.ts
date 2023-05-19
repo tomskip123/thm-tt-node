@@ -1,11 +1,11 @@
-import * as dotenv from 'dotenv'; // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
+import * as dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
-import { addTask, getTasks } from './dal/Task';
+import { addTask, deleteTask, getTasks } from './dal/Task';
 
 const app = express();
 const port = 3001; // default port to listen
@@ -26,6 +26,10 @@ app.get('/', (req, res) => {
 // tasks crud
 app.get('/tasks', async (req, res) => res.json(await getTasks()));
 app.post('/tasks', async (req, res) => res.json(await addTask(req.body)));
+// delete task
+app.delete('/tasks/:id', async (req, res) =>
+  res.json(await deleteTask(req.params.id))
+);
 
 // start the express server
 app.listen(port, () => {
