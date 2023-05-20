@@ -4,46 +4,34 @@ dotenv.config();
 import express from 'express';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
-import { MongoClient } from 'mongodb';
 import { addTask, deleteTask, getTasks, updateTask } from './methods/Task';
 import { Login, Register } from './methods/Auth';
 import Auth from './middleware/auth';
 
+// Create Express app
 const app = express();
-const port = 3001; // default port to listen
 
-// Use Helmet to secure against typical attacks!
+// Load port from an environment variable or use default
+const port = process.env.PORT || 3001;
+
+// Use Helmet middleware for securing Express apps with various HTTP headers
 app.use(helmet());
 
-// parse application/json
+// Use bodyParser middleware for parsing JSON bodies
 app.use(bodyParser.json());
 
-// define a route handler for the default home page
-app.get('/', Auth, (req, res) => {
-  // render the index template
-  res.render('index');
-});
+// Define authentication routes
+app.post('/login', Login);
+app.post('/register', Register);
+app.get('/validate', Auth, (req, res) => res.json(true)); // validate JWT token
 
-// api routes
-// tasks crud
-app.get('/tasks', async (req, res) => res.json(await getTasks()));
-app.post('/tasks', async (req, res) => res.json(await addTask(req.body)));
-// delete task
-app.delete('/tasks/:id', async (req, res) =>
-  res.json(await deleteTask(req.params.id))
-);
+// Define task CRUD routes
+app.get('/tasks', Auth, getTasks); // get tasks
+app.post('/tasks', Auth, addTask); // add task
+app.delete('/tasks/:id', Auth, deleteTask); // delete task
+app.put('/tasks/:id', Auth, updateTask); // update task
 
-// authentication endpoints
-app.post('/login', async (req, res) => await Login(req, res));
-app.post('/register', async (req, res) => await Register(req, res));
-
-// update task
-app.put('/tasks/:id', async (req, res) =>
-  res.json(await updateTask(req.params.id, req.body))
-);
-
-// start the express server
+// Start the Express server
 app.listen(port, () => {
-  // tslint:disable-next-line:no-console
-  console.log(`server started at http://localhost:${port}`);
+  console.log(`Server started at http://localhost:${port}`);
 });

@@ -1,43 +1,82 @@
 import { ObjectId } from 'mongodb';
 import { Client } from '../db';
+import { Request, Response } from 'express';
 
+// Define Task interface
 interface Task {
   _id: ObjectId;
   task: string;
+  status: string;
 }
 
-export async function getTasks() {
-  const query = {};
-  const tasks = Client.db('thm-tt').collection<Task>('tasks');
+// Function to get all tasks
+export async function getTasks(req: Request, res: Response) {
+  try {
+    const tasks = Client.db('thm-tt').collection<Task>('tasks');
 
-  const cursor = await tasks.find(query).limit(10);
+    // Get all tasks from the collection
+    const cursor = await tasks.find({});
+    const result = await cursor.toArray();
 
-  if ((await tasks.countDocuments(query)) === 0) {
-    console.warn('No documents found!');
+    // If no tasks found, return a warning message
+    if (result.length === 0) {
+      console.warn('No documents found!');
+    }
+
+    // Send the list of tasks
+    res.json(result);
+  } catch (err) {
+    // Log error if any
+    console.error(err);
   }
-
-  const result = await cursor.toArray();
-
-  console.log(result);
-
-  return result;
 }
 
-export async function addTask(task: Task) {
-  const tasks = Client.db('thm-tt').collection<Task>('tasks');
-  const cursor = await tasks.insertOne(task);
-  return await tasks.findOne(cursor.insertedId);
+// Function to add a task
+export async function addTask(req: Request, res: Response) {
+  try {
+    const tasks = Client.db('thm-tt').collection<Task>('tasks');
+
+    // Insert a new task in the collection
+    const cursor = await tasks.insertOne(req.body);
+
+    // Retrieve and send the inserted task
+    res.json(await tasks.findOne(cursor.insertedId));
+  } catch (err) {
+    // Log error if any
+    console.error(err);
+  }
 }
 
-export async function deleteTask(id: string) {
-  const tasks = Client.db('thm-tt').collection<Task>('tasks');
-  const cursor = await tasks.findOneAndDelete({ _id: new ObjectId(id) });
-  console.log(cursor);
-  return cursor.ok;
+// Function to delete a task
+export async function deleteTask(req: Request, res: Response) {
+  try {
+    const tasks = Client.db('thm-tt').collection<Task>('tasks');
+
+    // Delete the task and return the status
+    const cursor = await tasks.findOneAndDelete({
+      _id: new ObjectId(req.params.id),
+    });
+
+    res.json(cursor.ok);
+  } catch (err) {
+    // Log error if any
+    console.error(err);
+  }
 }
 
-export async function updateTask(id: string, values: Task) {
-  const tasks = Client.db('thm-tt').collection<Task>('tasks');
-  await tasks.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: values });
-  return await tasks.findOne({ _id: new ObjectId(id) });
+// Function to update a task
+export async function updateTask(req: Request, res: Response) {
+  try {
+    const id = req.params.id;
+    const tasks = Client.db('thm-tt').collection<Task>('tasks');
+
+    // Update the task in the collection
+    await tasks.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: req.body });
+
+    // Retrieve and send the updated task
+    res.json(await tasks.findOne({ _id: new ObjectId(id) }));
+  } catch (err) {
+    // Log error if any
+    console.error(err);
+  }
 }
