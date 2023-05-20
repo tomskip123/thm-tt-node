@@ -7,6 +7,7 @@ interface Task {
   _id: ObjectId;
   task: string;
   status: string;
+  userId?: ObjectId;
 }
 
 // Function to get all tasks
@@ -70,13 +71,25 @@ export async function updateTask(req: Request, res: Response) {
     const id = req.params.id;
     const tasks = Client.db('thm-tt').collection<Task>('tasks');
 
+    // Extract the fields to be updated from the request body
+    const updateFields: Partial<Task> = req.body;
+
+    // If the userId field is provided, convert it to an ObjectId
+    if (updateFields.userId) {
+      updateFields.userId = new ObjectId(updateFields.userId);
+    }
+
     // Update the task in the collection
-    await tasks.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: req.body });
+    await tasks.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: updateFields }
+    );
 
     // Retrieve and send the updated task
     res.json(await tasks.findOne({ _id: new ObjectId(id) }));
   } catch (err) {
     // Log error if any
     console.error(err);
+    res.status(500).send('Internal Server Error');
   }
 }
