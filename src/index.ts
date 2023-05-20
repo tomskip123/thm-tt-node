@@ -5,19 +5,21 @@ import express from 'express';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import { MongoClient } from 'mongodb';
-import { addTask, deleteTask, getTasks, updateTask } from './dal/Task';
+import { addTask, deleteTask, getTasks, updateTask } from './methods/Task';
+import { Login, Register } from './methods/Auth';
+import Auth from './middleware/auth';
 
 const app = express();
 const port = 3001; // default port to listen
 
-// Use Helmet!
+// Use Helmet to secure against typical attacks!
 app.use(helmet());
 
 // parse application/json
 app.use(bodyParser.json());
 
 // define a route handler for the default home page
-app.get('/', (req, res) => {
+app.get('/', Auth, (req, res) => {
   // render the index template
   res.render('index');
 });
@@ -30,6 +32,10 @@ app.post('/tasks', async (req, res) => res.json(await addTask(req.body)));
 app.delete('/tasks/:id', async (req, res) =>
   res.json(await deleteTask(req.params.id))
 );
+
+// authentication endpoints
+app.post('/login', async (req, res) => await Login(req, res));
+app.post('/register', async (req, res) => await Register(req, res));
 
 // update task
 app.put('/tasks/:id', async (req, res) =>
