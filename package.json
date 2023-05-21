@@ -2,9 +2,9 @@
   "name": "thm-tt-node",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
+  "main": "api/index.js",
   "scripts": {
-    "clean": "rimraf dist/*",
+    "clean": "rimraf api/*",
     "lint": "tslint -c tslint.json -p tsconfig.json --fix",
     "tsc": "tsc",
     "build": "npm-run-all clean lint tsc ",
