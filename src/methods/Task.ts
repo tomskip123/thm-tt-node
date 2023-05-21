@@ -61,7 +61,7 @@ export async function getTasks(req: Request, res: Response) {
   try {
     const result = await tasks().find({}).toArray();
 
-    res.json(result.length > 0 ? result : { warning: 'No documents found!' });
+    res.json(result);
   } catch (err) {
     errorHandler(err, req, res);
   }
