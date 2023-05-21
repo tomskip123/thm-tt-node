@@ -1,8 +1,16 @@
 import { ObjectId } from 'mongodb';
 import { Client } from '../db';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { wsClients } from '..';
+import { WebSocket } from 'ws';
 
-// Define Task interface
+/**
+ * @typedef Task
+ * @property {ObjectId} _id - The unique id of the task.
+ * @property {string} task - The description of the task.
+ * @property {string} status - The status of the task.
+ * @property {ObjectId} [userId] - The id of the user assigned to the task.
+ */
 interface Task {
   _id: ObjectId;
   task: string;
@@ -10,86 +18,118 @@ interface Task {
   userId?: ObjectId;
 }
 
-// Function to get all tasks
+const DATABASE_NAME = 'thm-tt';
+const COLLECTION_NAME = 'tasks';
+
+/**
+ * Gets the tasks collection.
+ * @returns {Collection} The tasks collection.
+ */
+const tasks = () => Client.db(DATABASE_NAME).collection<Task>(COLLECTION_NAME);
+
+/**
+ * Notifies all connected WebSocket clients with a given message.
+ * @param {string} type - The type of the message.
+ * @param {any} data - The data to be sent in the message.
+ */
+const notifyClients = (type: string, data: any) => {
+  const message = JSON.stringify({ type, data });
+  wsClients.forEach((client: WebSocket) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+};
+
+/**
+ * Handles errors by logging them and sending a 500 response.
+ * @param {Error} err - The error to handle.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
+const errorHandler = (err: Error, req: Request, res: Response) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal Server Error' });
+};
+
+/**
+ * Gets all tasks.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function getTasks(req: Request, res: Response) {
   try {
-    const tasks = Client.db('thm-tt').collection<Task>('tasks');
+    const result = await tasks().find({}).toArray();
 
-    // Get all tasks from the collection
-    const cursor = await tasks.find({});
-    const result = await cursor.toArray();
-
-    // If no tasks found, return a warning message
-    if (result.length === 0) {
-      console.warn('No documents found!');
-    }
-
-    // Send the list of tasks
-    res.json(result);
+    res.json(result.length > 0 ? result : { warning: 'No documents found!' });
   } catch (err) {
-    // Log error if any
-    console.error(err);
+    errorHandler(err, req, res);
   }
 }
 
-// Function to add a task
+/**
+ * Adds a new task.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function addTask(req: Request, res: Response) {
   try {
-    const tasks = Client.db('thm-tt').collection<Task>('tasks');
+    const cursor = await tasks().insertOne(req.body);
+    const task = await tasks().findOne(cursor.insertedId);
 
-    // Insert a new task in the collection
-    const cursor = await tasks.insertOne(req.body);
+    notifyClients('task_added', task);
 
-    // Retrieve and send the inserted task
-    res.json(await tasks.findOne(cursor.insertedId));
+    res.json(task);
   } catch (err) {
-    // Log error if any
-    console.error(err);
+    errorHandler(err, req, res);
   }
 }
 
-// Function to delete a task
+/**
+ * Deletes a task.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function deleteTask(req: Request, res: Response) {
   try {
-    const tasks = Client.db('thm-tt').collection<Task>('tasks');
-
-    // Delete the task and return the status
-    const cursor = await tasks.findOneAndDelete({
+    const cursor = await tasks().findOneAndDelete({
       _id: new ObjectId(req.params.id),
     });
 
-    res.json(cursor.ok);
+    notifyClients('task_deleted', req.params.id);
+
+    res.json(
+      cursor.ok
+        ? { success: 'Task deleted successfully' }
+        : { error: 'Failed to delete task' }
+    );
   } catch (err) {
-    // Log error if any
-    console.error(err);
+    errorHandler(err, req, res);
   }
 }
 
-// Function to update a task
+/**
+ * Updates a task.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function updateTask(req: Request, res: Response) {
   try {
-    const id = req.params.id;
-    const tasks = Client.db('thm-tt').collection<Task>('tasks');
-
-    // Extract the fields to be updated from the request body
+    const id = new ObjectId(req.params.id);
     const updateFields: Partial<Task> = req.body;
 
-    // If the userId field is provided, convert it to an ObjectId
     if (updateFields.userId) {
       updateFields.userId = new ObjectId(updateFields.userId);
     }
 
-    // Update the task in the collection
-    await tasks.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      { $set: updateFields }
-    );
+    await tasks().findOneAndUpdate({ _id: id }, { $set: updateFields });
 
-    // Retrieve and send the updated task
-    res.json(await tasks.findOne({ _id: new ObjectId(id) }));
+    const task = await tasks().findOne(id);
+
+    notifyClients('task_updated', task);
+
+    res.json(task);
   } catch (err) {
-    // Log error if any
-    console.error(err);
-    res.status(500).send('Internal Server Error');
+    errorHandler(err, req, res);
   }
 }

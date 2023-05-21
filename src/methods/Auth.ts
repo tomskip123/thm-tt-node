@@ -1,110 +1,117 @@
 import * as bcrypt from 'bcryptjs';
-import { Client } from '../db';
+import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { ObjectId } from 'mongodb';
-import { Request, Response } from 'express';
-import { v4 } from 'uuid';
+import { Client } from '../db';
 
-// Define User interface
-interface UserI {
+const DATABASE_NAME = 'thm-tt';
+const COLLECTION_NAME = 'users';
+const JWT_SECRET_KEY = process.env.JWT_KEY;
+const JWT_EXPIRES_IN = '2h';
+
+/**
+ * @typedef UserI
+ * @property {ObjectId} _id - The unique id of the user.
+ * @property {string} email - The email of the user.
+ * @property {string} password - The hashed password of the user.
+ * @property {string} token - The jwt token of the user.
+ */
+export interface UserI {
   _id: ObjectId;
   email: string;
   password: string;
   token: string;
 }
 
-// Function for user login
+/**
+ * Gets the users collection.
+ * @returns {Collection} The users collection.
+ */
+const users = () => Client.db(DATABASE_NAME).collection<UserI>(COLLECTION_NAME);
+
+/**
+ * Handles errors by logging them and sending a 500 response.
+ * @param {Error} err - The error to handle.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
+const errorHandler = (err: Error, req: Request, res: Response) => {
+  console.error(err); // Consider using a logging library here
+  res.status(500).json({ error: 'Internal Server Error' });
+};
+
+/**
+ * Handles user login.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function Login(req: Request, res: Response) {
   try {
-    // Get email and password from request body
     const { email, password } = req.body;
 
-    // Validate email and password. Send error response if not provided
     if (!(email && password)) {
-      return res.status(400).send('All input is required');
+      res.status(400).json({ error: 'All input is required' });
+      return;
     }
 
-    // Get user collection from database
-    const User = Client.db('thm-tt').collection<UserI>('users');
+    const user = await users().findOne({ email });
 
-    // Validate if user exist in our database
-    const user = await User.findOne({ email });
-
-    // If user exists and password is valid
     if (user && (await bcrypt.compare(password, user.password))) {
-      // Create JWT token
-      const token = jwt.sign(
-        { user_id: user._id, email },
-        process.env.JWT_KEY,
-        {
-          expiresIn: '2h',
-        }
-      );
+      const token = jwt.sign({ user_id: user._id, email }, JWT_SECRET_KEY, {
+        expiresIn: JWT_EXPIRES_IN,
+      });
 
-      // Save user token in database
-      await User.updateOne({ _id: user._id }, { $set: { token } });
+      await users().updateOne({ _id: user._id }, { $set: { token } });
       user.token = token;
 
-      // Send user data as response
-      return res.status(200).json(user);
+      res.status(200).json(user);
+    } else {
+      res.status(400).json({ error: 'Invalid Credentials' });
     }
-
-    // If credentials are not valid, send error response
-    return res.status(400).send('Invalid Credentials');
   } catch (err) {
-    // Log error if any
-    console.error(err);
+    errorHandler(err, req, res);
   }
 }
 
-// Function for user registration
+/**
+ * Handles user registration.
+ * @param {Request} req - The request object.
+ * @param {Response} res - The response object.
+ */
 export async function Register(req: Request, res: Response) {
   try {
-    // Get email and password from request body
     const { email, password } = req.body;
 
-    // Validate email and password. Send error response if not provided
     if (!(email && password)) {
-      return res.status(400).send('All input is required');
+      res.status(400).json({ error: 'All input is required' });
+      return;
     }
 
-    // Get user collection from database
-    const User = Client.db('thm-tt').collection<UserI>('users');
+    const oldUser = await users().findOne({ email });
 
-    // Check if user already exist in our database
-    const oldUser = await User.findOne({ email });
-
-    // If user already exists, send error response
     if (oldUser) {
-      return res.status(409).send('User Already Exist. Please Login');
+      res.status(409).json({ error: 'User Already Exist. Please Login' });
+      return;
     }
 
-    // Hash password
     const encryptedPassword = await bcrypt.hash(password, 10);
-
-    // Generate new ObjectId for user
     const id = new ObjectId();
 
-    // Create user
-    const user = await User.insertOne({
+    const user = await users().insertOne({
       _id: id,
-      email: email.toLowerCase(), // sanitize: convert email to lowercase
+      email: email.toLowerCase(),
       password: encryptedPassword,
       token: '',
     });
 
-    // Create JWT token
-    const token = jwt.sign({ user_id: id, email }, process.env.JWT_KEY, {
-      expiresIn: '2h',
+    const token = jwt.sign({ user_id: id, email }, JWT_SECRET_KEY, {
+      expiresIn: JWT_EXPIRES_IN,
     });
 
-    // Save user token in database
-    await User.updateOne({ _id: id }, { $set: { token } });
+    await users().updateOne({ _id: id }, { $set: { token } });
 
-    // Send user data as response
-    return res.status(201).json(user);
+    res.status(201).json(user);
   } catch (err) {
-    // Log error if any
-    console.error(err);
+    errorHandler(err, req, res);
   }
 }
