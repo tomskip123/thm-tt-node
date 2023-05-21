@@ -57,6 +57,8 @@ wss.on('connection', (ws) => {
 });
 
 // Start the server (both HTTP and WebSocket)
-server.listen(port, () => {
-  console.log(`Server started at http://localhost:${port}`);
-});
+// server.listen(port, () => {
+//   console.log(`Server started at http://localhost:${port}`);
+// });
+
+export default server;
