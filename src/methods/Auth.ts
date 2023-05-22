@@ -62,6 +62,11 @@ export async function Login(req: Request, res: Response) {
       });
 
       await users().updateOne({ _id: user._id }, { $set: { token } });
+
+      /**
+       * TODO: Consider not sending the token in the response.
+       * the token should be stored in a secure HTTP-only cookie.
+       */
       user.token = token;
 
       res.status(200).json(user);

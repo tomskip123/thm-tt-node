@@ -14,7 +14,7 @@ import { WebSocket } from 'ws';
 interface Task {
   _id: ObjectId;
   task: string;
-  status: string;
+  status?: string;
   userId?: ObjectId;
 }
 
@@ -53,6 +53,27 @@ const errorHandler = (err: Error, req: Request, res: Response) => {
 };
 
 /**
+ * Validates input for tasks.
+ * @param {Partial<Task>} task - The task object to validate.
+ * @returns {boolean} - The result of the validation.
+ */
+const validateTask = (task: Partial<Task>): boolean => {
+  if (typeof task.task !== 'string' || task.task.length === 0) {
+    return false;
+  }
+
+  if (task?.status && typeof task.status !== 'string') {
+    return false;
+  }
+
+  if (task?.userId && !(task.userId instanceof ObjectId)) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
  * Gets all tasks.
  * @param {Request} req - The request object.
  * @param {Response} res - The response object.
@@ -74,6 +95,11 @@ export async function getTasks(req: Request, res: Response) {
  */
 export async function addTask(req: Request, res: Response) {
   try {
+    if (!validateTask(req.body)) {
+      res.status(400).json({ error: 'Invalid task data' });
+      return;
+    }
+
     const cursor = await tasks().insertOne(req.body);
     const task = await tasks().findOne(cursor.insertedId);
 
@@ -84,7 +110,6 @@ export async function addTask(req: Request, res: Response) {
     errorHandler(err, req, res);
   }
 }
-
 /**
  * Deletes a task.
  * @param {Request} req - The request object.
@@ -92,9 +117,14 @@ export async function addTask(req: Request, res: Response) {
  */
 export async function deleteTask(req: Request, res: Response) {
   try {
-    const cursor = await tasks().findOneAndDelete({
-      _id: new ObjectId(req.params.id),
-    });
+    // Validate the ObjectId
+    if (!ObjectId.isValid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid ObjectId' });
+      return;
+    }
+
+    const id = new ObjectId(req.params.id);
+    const cursor = await tasks().findOneAndDelete({ _id: id });
 
     notifyClients('task_deleted', req.params.id);
 
@@ -115,8 +145,28 @@ export async function deleteTask(req: Request, res: Response) {
  */
 export async function updateTask(req: Request, res: Response) {
   try {
+    // Validate the ObjectId
+    if (!ObjectId.isValid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid ObjectId' });
+      return;
+    }
+
+    // Validate the task data
+    if (!validateTask(req.body)) {
+      res.status(400).json({ error: 'Invalid task data' });
+      return;
+    }
+
     const id = new ObjectId(req.params.id);
     const updateFields: Partial<Task> = req.body;
+
+    if (
+      updateFields.userId &&
+      !ObjectId.isValid(updateFields.userId.toString())
+    ) {
+      res.status(400).json({ error: 'Invalid user ObjectId' });
+      return;
+    }
 
     if (updateFields.userId) {
       updateFields.userId = new ObjectId(updateFields.userId);
